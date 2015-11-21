@@ -2,7 +2,7 @@
 title: "Project Machine Learning"
 author: "Helena Tuompo"
 date: "Wednesday, November 04, 2015"
-output: pdf_document
+output: html_document
 ---
 
 Introduction
