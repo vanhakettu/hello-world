@@ -1,0 +1,114 @@
+---
+title: "Project Machine Learning"
+author: "Helena Tuompo"
+date: "Wednesday, November 04, 2015"
+output: pdf_document
+---
+
+Introduction
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+In this project, my goal is to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.The data is from  the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+The training data for this project are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The goal of my project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. I have created a report describing how I built my model, how I did cross validation, what I think the expected out of sample error is, and why I made the choices I did. I also used my prediction model to predict 20 different test cases. 
+
+Libraries needed to perform various tasks:
+```{r, echo=FALSE}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+library(corrplot)
+```
+
+Reading and cleaning the Data. I took the data to my personal computer for further inspection. Columns that contained, NA, missing values were first removed and "classe" was added to the training dataset. Then other columns that did not have actual training or testing data were cleaned off.
+```{r}
+training <- read.csv("C:/Hele/Matematiikka/pml-training.csv")
+testing <- read.csv("C:/Hele/Matematiikka/pml-testing.csv")
+dim(training)
+dim(testing) 
+sum(complete.cases(training))
+
+#Removing columns that contain NA missing values: 
+training <- training[, colSums(is.na(training)) == 0] 
+testing <- testing[, colSums(is.na(testing)) == 0] 
+dim(training)
+dim(testing) 
+#Adding classe variable:
+classe <- training$classe
+#Other columns that do not handle training or testing data were removed:
+trainRemove <- grepl("^X|timestamp|window", names(training))
+training <- training[, !trainRemove]
+trainCleaned <- training[, sapply(training, is.numeric)]
+trainCleaned$classe <- classe
+testRemove <- grepl("^X|timestamp|window", names(testing))
+testing <- testing[, !testRemove]
+testCleaned <- testing[, sapply(testing, is.numeric)]
+dim(trainCleaned)
+dim(testCleaned)
+```
+Now, the cleaned training dataset contained 19622 observations and 53 variables, 
+while the testing dataset contained 20 observations and 53 variables. 
+The added "classe" variable is still in the cleaned training set.
+
+Then I splitted the cleaned training set into a pure training data (70%) and
+a validation data (30%).This validation data is used later after the Random Forest run. 
+A predictive model for activity recognition was created by using Random Forest algorithm with simulataneous 5-fold cross validation. Random Forest automatically selects important variables. It is also robust to correlated covariates & outliers. 
+```{r}
+set.seed(22519) # For reproducibile purpose
+inTrain <- createDataPartition(trainCleaned$classe, p=0.70, list=F)
+trainDat <- trainCleaned[inTrain, ]
+testDat <- trainCleaned[-inTrain, ]
+controlRf <- trainControl(method="cv", 5)
+modelRf <- train(classe ~ ., data=trainDat, method="rf", trControl=controlRf, ntree=250)
+modelRf
+```
+Then I estimated the performance of the model. The validation data (30%) after splitting was now used.  
+```{r}
+
+predictRf <- predict(modelRf, testDat)
+confusionMatrix(testDat$classe, predictRf)
+```
+Error calculations
+```{r}
+
+accuracy <- postResample(predictRf, testDat$classe)
+accuracy
+
+overallstandarderror <- 1 - as.numeric(confusionMatrix(testDat$classe, predictRf)$overall[1])
+overallstandarderror# out-of-sample error is overallstandarderror in %
+
+```
+Estimated accuracy of the model is 99.30% and the estimated out-of-sample error is 0.70%  after validation with the test data.
+
+Predicting for Test Data Set
+
+Now, the model to the original testing data set downloaded from the data source. We remove the  problem_id  column first.These are the answers to the problem.  
+
+```{r}
+result <- predict(modelRf, testCleaned[, -length(names(testCleaned))])
+result
+```
+Correlation Matrix of Training Data:
+```{r}
+corrPlot <- cor(trainDat[, -length(names(trainDat))])
+corrplot(corrPlot, method="color")
+```
+
+Decision Tree Model with Classes of the Training Data:
+
+```{r}
+
+treeModel <- rpart(classe ~ ., data=trainDat, method="class")
+prp(treeModel) # fast plot
+```
+
+
